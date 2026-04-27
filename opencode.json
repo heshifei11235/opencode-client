@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "minimax/MiniMax-M2.7",
+  "server": {
+    "port": 4096
+  },
+  "share": "auto",
+  "permission": {
+    "edit": { "*": "allow" },
+    "bash": {
+      "*": "ask",
+      "git *": "allow",
+      "npm *": "allow",
+      "pnpm *": "allow",
+      "yarn *": "allow"
+    },
+    "read": { "*": "allow" }
+  },
+  "instructions": [
+    "使用中文回复",
+    "遵循项目的代码规范"
+  ]
+}

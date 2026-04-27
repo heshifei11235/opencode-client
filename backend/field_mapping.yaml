@@ -1,0 +1,109 @@
+# ============================================================
+# 设备字段映射配置文件
+# ============================================================
+# 用于将 API 返回的原始字段映射到内部字段
+# 当 API 字段名称变化时，只需修改此文件，无需修改代码
+# ============================================================
+
+# 设备基本信息映射 (device info)
+# 格式: "API字段名": "内部字段名"
+device_info:
+  # 必需字段
+  id: "id"              # 设备唯一标识
+  uuid_sha256: "id"     # 使用 uuid_sha256 作为设备 ID (优先)
+  udid_sha256: "id"     # 使用 udid_sha256 作为设备 ID (备选)
+  name: "name"          # 设备名称
+  host: "host"          # 主机地址
+  ip: "host"            # 主机地址 (备用字段)
+  port: "port"          # 端口
+  protocol: "protocol"   # 协议 (ssh/telnet/http)
+  username: "username"  # 用户名
+
+  # 可选字段
+  group: "group"        # 分组
+
+# 设备详情映射 (device detail)
+device_detail:
+  # 标识字段
+  id: "id"
+  uuid_sha256: "id"     # 使用 uuid_sha256 作为设备 ID
+  udid_sha256: "id"     # 使用 udid_sha256 作为设备 ID (备选)
+
+  # 基本信息
+  device_name: "device_name"
+  name: "name"
+  device_type: "device_type"
+  device_status: "device_status"
+  device_location: "device_location"
+
+  # 网络信息
+  ip: "device_ip"
+  device_ip: "device_ip"
+  host: "device_ip"
+  port: "device_port"
+  device_port: "device_port"
+
+  # 认证信息
+  device_username: "device_username"
+  device_password: "device_password"
+  device_ssh_port: "device_ssh_port"
+  device_ssh_username: "device_ssh_username"
+
+  # 设备属性
+  day30_active_flg: "day30_active_flg"
+  sample_type_cn: "sample_type_cn"
+  device_extnal_modname: "device_extnal_modname"
+  device_prod_sprdname: "device_prod_sprdname"
+  frame_type: "frame_type"
+  country: "country"
+  province: "province"
+  city: "city"
+
+  # 版本信息
+  version_category: "version_category"
+  bl_version: "bl_version"
+  security_id: "security_id"
+
+  # OOBE 相关
+  oobe_status: "oobe_status"
+  oobe_times: "oobe_times"
+  developer_mode_status: "developer_mode_status"
+
+  # 风险相关
+  pt_d: "pt_d"
+
+  # WiFi 检测列表 (API 返回) -> wifi_list (内部使用)
+  wifi_detection_list: "wifi_detection_list"
+
+# WiFi 信息映射
+wifi_info:
+  ssid: "ssid"
+  password: "password"
+  bssid: "bssid"
+  apexit_ip: "apexit_ip"
+  happentime: "happentime"
+
+# 风险分析映射 (支持中英文 key)
+risk_analysis:
+  # 标识
+  generation_time: "generation_time"
+  生成时间: "generation_time"
+
+  analysis_type: "analysis_type"
+  分析类型: "analysis_type"
+
+  time_range: "time_range"
+  分析时间范围: "time_range"
+
+  # 风险等级 (中英文)
+  very_high_risk: "very_high_risk"
+  极高风险: "very_high_risk"
+
+  high_risk: "high_risk"
+  高风险: "high_risk"
+
+  medium_risk: "medium_risk"
+  中风险: "medium_risk"
+
+  low_risk: "low_risk"
+  低风险: "low_risk"

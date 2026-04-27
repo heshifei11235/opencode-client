@@ -1,0 +1,64 @@
+# ============================================================
+# OpenCode Client 后端配置文件
+# ============================================================
+
+# 服务器配置
+server:
+  # 后端服务端口
+  port: 8000
+  # 是否开启调试模式（生产环境设为 false）
+  debug: false
+  # CORS 允许的来源（前端地址）
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:3001"
+    - "http://localhost:3002"
+    - "http://localhost:3003"
+    # 添加你的前端部署地址，例如：
+    # - "https://your-domain.com"
+
+# 数据库配置
+database:
+  # SQLite 数据库文件路径（相对于 backend 目录）
+  path: "opencode_client.db"
+
+# OpenCode 服务配置
+opencode:
+  # 默认的 OpenCode 服务器地址
+  # 本地开发时使用 http://localhost:4096
+  # 生产环境部署时填写实际地址
+  default_url: "http://localhost:4096"
+  # 默认超时时间（秒）
+  timeout: 60
+  # 默认用户名（可选）
+  # username: ""
+  # 默认密码（可选）
+  # password: ""
+
+# 认证配置
+auth:
+  # 是否启用主密码保护
+  # 启用后密码管理器需要解锁才能使用
+  enabled: true
+  # 密码加密迭代次数
+  # 数值越高越安全但越慢，建议 100000-500000
+  pbkdf2_iterations: 100000
+
+# 日志配置
+logging:
+  # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  # 是否打印到控制台
+  console: true
+  # 日志文件路径（可选）
+  # file: "logs/app.log"
+
+# 文件上传配置（如果未来需要）
+upload:
+  # 最大文件大小（MB）
+  max_size: 10
+  # 允许的文件扩展名
+  allowed_extensions:
+    - ".md"
+    - ".json"
+    - ".txt"
