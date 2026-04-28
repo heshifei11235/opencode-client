@@ -18,12 +18,10 @@ export default function ProjectPanel() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
+  // Only track which projects are expanded - docs are always visible when parent is expanded
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set())
-  // Track expanded docs per project (keyed by projectId_docId to ensure uniqueness)
-  const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set())
-
-  // Helper to get doc key with project prefix
-  const getDocKey = (projectId: number, docId: string) => `${projectId}_${docId}`
+  // Track which doc+project combos are selected (fetched devices shown)
+  const [selectedDocKey, setSelectedDocKey] = useState<string | null>(null)
 
   // New project form
   const [newProjectName, setNewProjectName] = useState('')
@@ -88,23 +86,36 @@ export default function ProjectPanel() {
 
   const handleToggleExpandProject = async (e: React.MouseEvent, project: Project) => {
     e.stopPropagation()
-    const newExpanded = new Set(expandedProjects)
 
-    if (expandedProjects.has(project.id)) {
-      newExpanded.delete(project.id)
-    } else {
-      try {
-        const res = await fetch(`/api/projects/${project.id}/documents`)
-        const docs = await res.json()
-        // Store documents under this project's ID
-        setProjectDocuments(project.id, docs)
-        newExpanded.add(project.id)
-      } catch (err) {
-        console.error('Failed to fetch documents:', err)
+    const isExpanding = !expandedProjects.has(project.id)
+
+    if (!isExpanding) {
+      // When collapsing, clear selected doc if it's from this project
+      if (selectedDocKey && selectedDocKey.startsWith(`${project.id}_`)) {
+        setSelectedDocKey(null)
       }
+    } else {
+      // Fetch documents when expanding
+      fetch(`/api/projects/${project.id}/documents`)
+        .then(res => res.json())
+        .then(docs => {
+          setProjectDocuments(project.id, docs)
+        })
+        .catch(err => {
+          console.error('Failed to fetch documents:', err)
+        })
     }
 
-    setExpandedProjects(newExpanded)
+    // Use functional update to avoid stale closure
+    setExpandedProjects(prev => {
+      const newExpanded = new Set(prev)
+      if (isExpanding) {
+        newExpanded.add(project.id)
+      } else {
+        newExpanded.delete(project.id)
+      }
+      return newExpanded
+    })
   }
 
   const handleSelectProject = (project: Project) => {
@@ -157,17 +168,9 @@ export default function ProjectPanel() {
 
       setCurrentDevices(devices)
 
-      // Toggle doc expansion - use functional update to avoid stale closure
-      const docKey = getDocKey(projectId, doc.id)
-      setExpandedDocs(prev => {
-        const newExpanded = new Set(prev)
-        if (prev.has(docKey)) {
-          newExpanded.delete(docKey)
-        } else {
-          newExpanded.add(docKey)
-        }
-        return newExpanded
-      })
+      // Set selected doc key (only one doc can be selected at a time)
+      const docKey = `${projectId}_${doc.id}`
+      setSelectedDocKey(docKey)
     } catch (err) {
       console.error('Failed to parse document:', err)
       setCurrentDevices([])
@@ -370,7 +373,7 @@ export default function ProjectPanel() {
                           onClick={() => handleSelectDocument(project.id, doc)}
                           className={cn(
                             'w-full text-left rounded-lg transition-all cursor-pointer p-2 flex items-center gap-2',
-                            expandedDocs.has(getDocKey(project.id, doc.id))
+                            selectedDocKey === `${project.id}_${doc.id}`
                               ? 'bg-slate-700/50 text-white'
                               : 'hover:bg-slate-700/30 text-slate-300'
                           )}
@@ -382,7 +385,7 @@ export default function ProjectPanel() {
                             }}
                             className="p-0.5 hover:bg-slate-600/50 rounded flex-shrink-0"
                           >
-                            {expandedDocs.has(getDocKey(project.id, doc.id)) ? (
+                            {selectedDocKey === `${project.id}_${doc.id}` ? (
                               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                             ) : (
                               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -393,7 +396,7 @@ export default function ProjectPanel() {
                         </div>
 
                         {/* Device list (level 3) */}
-                        {expandedDocs.has(getDocKey(project.id, doc.id)) && (
+                        {selectedDocKey === `${project.id}_${doc.id}` && (
                           <div className="ml-5 mt-1 space-y-1">
                             {currentDevices.length > 0 ? (
                               currentDevices.map((device) => (
