@@ -19,6 +19,7 @@ export default function ProjectPanel() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set())
+  // Track expanded docs per project (keyed by projectId_docId)
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set())
 
   // New project form
@@ -151,6 +152,7 @@ export default function ProjectPanel() {
 
       setCurrentDevices(devices)
 
+      // Toggle doc expansion - use doc.id as key
       const newExpanded = new Set(expandedDocs)
       if (expandedDocs.has(doc.id)) {
         newExpanded.delete(doc.id)
@@ -165,10 +167,33 @@ export default function ProjectPanel() {
     }
   }
 
-  const handleSelectDevice = (device: Device, documentId: string) => {
+  const handleSelectDevice = async (device: Device, documentId: string) => {
     setActiveDevice(device.id)
     setActiveDocumentId(documentId)
     addOpenDevice(device.id)
+
+    // Ensure device connection exists in database
+    try {
+      const projectId = currentProjectId
+      if (!projectId) return
+
+      // Check if device connection already exists
+      const connsRes = await fetch('/api/devices')
+      const conns = await connsRes.json()
+      const existingConn = conns.find((c: any) =>
+        c.device_id === device.id &&
+        c.project_id === projectId &&
+        c.document_id === documentId
+      )
+
+      // If not found, the connection will be created automatically when parsing document
+      // or we can create it here if needed
+      if (!existingConn) {
+        console.log('Device connection not found in DB, will be created on document parse')
+      }
+    } catch (err) {
+      console.error('Failed to check device connection:', err)
+    }
   }
 
   const openAddDeviceDialog = () => {
@@ -221,8 +246,36 @@ export default function ProjectPanel() {
     setShowDeviceDialog(false)
   }
 
-  const handleDeleteDevice = (deviceId: string) => {
+  const handleDeleteDevice = async (deviceId: string) => {
     if (!confirm('Delete this device?')) return
+
+    try {
+      // Find and delete the device connection from database
+      const connsRes = await fetch('/api/devices')
+      const conns = await connsRes.json()
+      const docId = currentProjectDocuments.find(d =>
+        currentDevices.some(c => c.id === deviceId)
+      )?.id
+
+      if (!docId) {
+        console.error('Document not found for device')
+        return
+      }
+
+      const connToDelete = conns.find((c: any) =>
+        c.device_id === deviceId &&
+        c.project_id === currentProjectId &&
+        c.document_id === docId
+      )
+
+      if (connToDelete) {
+        await fetch(`/api/devices/${connToDelete.id}`, { method: 'DELETE' })
+      }
+    } catch (err) {
+      console.error('Failed to delete device from database:', err)
+    }
+
+    // Remove from frontend state
     setCurrentDevices(currentDevices.filter(d => d.id !== deviceId))
     if (activeDeviceId === deviceId) {
       setActiveDevice(null)

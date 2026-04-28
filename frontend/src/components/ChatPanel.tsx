@@ -192,6 +192,12 @@ export default function ChatPanel() {
           message: content
         })
       })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.detail || `HTTP ${res.status}: ${res.statusText}`)
+      }
+
       const data = await res.json()
 
       // Add assistant response
