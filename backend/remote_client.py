@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import httpx
 
+from config import get_debug_config, get_logger
+
 
 @dataclass
 class RemoteConnection:
@@ -38,16 +40,24 @@ class RemoteOpenCodeClient:
 
     async def test_connection(self, url: str, username: str = None, password: str = None) -> dict:
         """Test if we can connect to a remote OpenCode server"""
+        logger = get_logger()
+        debug_config = get_debug_config()
+        if debug_config.get("print_opencode_communication"):
+            logger.debug(f"[OpenCode] Testing connection to {url}")
+
         headers = {}
         if username and password:
             import base64
             credentials = f"{username}:{password}"
             headers["Authorization"] = f"Basic {base64.b64encode(credentials.encode()).decode()}"
-        print(headers)
+        if debug_config.get("print_opencode_communication"):
+            logger.debug(f"[OpenCode] Auth headers prepared: {'yes' if username and password else 'no'}")
+
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             try:
                 response = await client.get(f"{url}/global/health", headers=headers)
-                # print(response.json())
+                if debug_config.get("print_opencode_communication"):
+                    logger.debug(f"[OpenCode] Health check response: {response.status_code}")
                 # httpx returns response object for all status codes (doesn't raise for 4xx/5xx)
                 if response.status_code >= 400:
                     if response.status_code == 401:
@@ -57,14 +67,26 @@ class RemoteOpenCodeClient:
                     return {"success": False, "error": f"Server error (HTTP {response.status_code})"}
                 # Success (200)
                 try:
-                    return {"success": True, "data": response.json()}
+                    result = {"success": True, "data": response.json()}
+                    if debug_config.get("print_opencode_communication"):
+                        logger.debug(f"[OpenCode] Connection test successful")
+                    return result
                 except Exception:
-                    return {"success": True, "data": {"healthy": True}}
-            except httpx.ConnectError:
+                    result = {"success": True, "data": {"healthy": True}}
+                    if debug_config.get("print_opencode_communication"):
+                        logger.debug(f"[OpenCode] Connection test successful (no JSON body)")
+                    return result
+            except httpx.ConnectError as e:
+                if debug_config.get("print_opencode_communication"):
+                    logger.debug(f"[OpenCode] Connection failed: {e}")
                 return {"success": False, "error": "Connection failed - check URL and port"}
             except httpx.TimeoutException:
+                if debug_config.get("print_opencode_communication"):
+                    logger.debug(f"[OpenCode] Connection timed out")
                 return {"success": False, "error": "Connection timed out"}
             except Exception as e:
+                if debug_config.get("print_opencode_communication"):
+                    logger.debug(f"[OpenCode] Connection error: {e}")
                 return {"success": False, "error": str(e)}
 
     async def get_or_create_session(
@@ -119,6 +141,9 @@ class RemoteOpenCodeClient:
         content: str
     ) -> dict:
         """Send a message to the session and return the response"""
+        logger = get_logger()
+        debug_config = get_debug_config()
+
         connection = self._get_connection_for_session(session)
         if not connection:
             raise Exception("Connection not found")
@@ -135,13 +160,16 @@ class RemoteOpenCodeClient:
         payload = {
             "parts": [{"type": "text", "text": content}]
         }
-        print(payload)
+        if debug_config.get("print_opencode_communication"):
+            logger.debug(f"[OpenCode] Sending message to {url}")
+            logger.debug(f"[OpenCode] Payload: {payload}")
+
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(url, headers=headers, json=payload)
-                print(f"OpenCode response status: {response.status_code}")
-                print(
-                    f"OpenCode response body: {response.text[:500] if response.text else 'empty'}")
+                if debug_config.get("print_opencode_communication"):
+                    logger.debug(f"[OpenCode] Response status: {response.status_code}")
+                    logger.debug(f"[OpenCode] Response body: {response.text[:500] if response.text else 'empty'}")
 
                 if response.status_code == 200:
                     return response.json()
@@ -150,6 +178,7 @@ class RemoteOpenCodeClient:
                         f"Failed to send message: {response.status_code}")
 
         except httpx.HTTPError as e:
+            logger.error(f"[OpenCode] HTTP error: {type(e).__name__} - {str(e)}")
             raise Exception(
                 f"HTTP error: {type(e).__name__} - {str(e) or 'Connection failed'}")
 

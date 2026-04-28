@@ -11,6 +11,8 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from config import get_debug_config, get_logger
+
 
 # ============================================================
 # Field Mapping Configuration
@@ -392,6 +394,11 @@ def parse_md_document_full(file_path: str) -> ParseResult:
     If the file has a .json extension, parse it directly as JSON.
     If the file has a .md extension, extract JSON code blocks from it.
     """
+    debug_config = get_debug_config()
+    logger = get_logger()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[Parser] Parsing document: {file_path}")
+
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -409,18 +416,24 @@ def parse_md_document_full(file_path: str) -> ParseResult:
         try:
             data = json.loads(content)
             risk_analysis = _process_json_data(data, devices, device_ids, risk_analysis, device_details)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            if debug_config.get("print_api_requests"):
+                logger.debug(f"[Parser] JSON decode error: {e}")
             pass
     else:
         # Markdown file - find all JSON code blocks
         pattern = r'```json\s*(.*?)\s*```'
         matches = re.findall(pattern, content, re.DOTALL)
+        if debug_config.get("print_api_requests"):
+            logger.debug(f"[Parser] Found {len(matches)} JSON code blocks in markdown")
 
         for match in matches:
             try:
                 data = json.loads(match)
                 risk_analysis = _process_json_data(data, devices, device_ids, risk_analysis, device_details)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                if debug_config.get("print_api_requests"):
+                    logger.debug(f"[Parser] JSON decode error in code block: {e}")
                 continue
 
     # Convert to DeviceInfo objects
@@ -429,6 +442,9 @@ def parse_md_document_full(file_path: str) -> ParseResult:
         device = parse_device(device_data)
         if device:
             device_infos.append(device)
+
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[Parser] Parsed {len(device_infos)} devices, risk_analysis type={risk_analysis.analysis_type}")
 
     return ParseResult(
         devices=device_infos,

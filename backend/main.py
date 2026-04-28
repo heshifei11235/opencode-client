@@ -41,7 +41,7 @@ from database import (
 from password_store import password_store, generate_salt, hash_password
 from remote_client import remote_client, RemoteConnection
 from md_parser import list_md_documents, parse_md_document, parse_md_document_full
-from config import get_server_config, get_database_config, get_opencode_config
+from config import get_server_config, get_database_config, get_opencode_config, get_debug_config, get_logger
 
 # 加载配置
 server_config = get_server_config()
@@ -71,6 +71,10 @@ device_details_cache: dict[str, dict] = {}
 @app.post("/api/connections", response_model=ConnectionResponse)
 async def api_create_connection(conn: ConnectionCreate):
     """Create a new connection to a remote OpenCode server"""
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] POST /api/connections - Creating connection: {conn.name}, url={conn.url}")
     conn_id = db_create_connection(
         name=conn.name,
         url=conn.url,
@@ -78,13 +82,23 @@ async def api_create_connection(conn: ConnectionCreate):
         password=conn.password,
         working_directory=conn.working_directory
     )
-    return get_connection_by_id(conn_id)
+    result = get_connection_by_id(conn_id)
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] Connection created: id={conn_id}")
+    return result
 
 
 @app.get("/api/connections")
 async def api_get_connections():
     """Get all saved connections (without passwords)"""
-    return get_connections()
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug("[API] GET /api/connections - Fetching all connections")
+    result = get_connections()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] Returning {len(result)} connections")
+    return result
 
 
 @app.get("/api/connections/{conn_id}")
@@ -101,11 +115,17 @@ async def api_get_connection(conn_id: int):
 @app.post("/api/connections/test")
 async def api_test_connection(test: ConnectionTest):
     """Test connection to a remote OpenCode server"""
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] POST /api/connections/test - Testing connection to {test.url}")
     result = await remote_client.test_connection(
         url=test.url,
         username=test.username,
         password=test.password
     )
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] Connection test result: {result}")
     return result
 
 
@@ -227,6 +247,11 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     - A device connection ID (int as string) - create/find session for it
     - A device ID (dev_xxx format) - create session for direct device chat
     """
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[WebSocket] Client connected: session_id={session_id}")
+
     await websocket.accept()
 
     # Try to find existing session
@@ -321,13 +346,17 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
                 # Save user message to DB
                 save_chat_message(session_id, "user", content)
+                if debug_config.get("print_database_operations"):
+                    logger.debug(f"[DB] WebSocket saved user message to session: {session_id}")
 
                 # Send message to remote and return response
                 try:
-                    print(
-                        f"Sending message to remote session: {remote_session.remote_session_id}")
+                    if debug_config.get("print_opencode_communication"):
+                        logger.debug(f"[OpenCode] Sending message to remote session: {remote_session.remote_session_id}")
                     response = await remote_client.send_message(remote_session, content)
-                    print(f"Received response from remote: {response}")
+                    if debug_config.get("print_opencode_communication"):
+                        logger.debug(f"[OpenCode] Received response: {response}")
+
                     # Save assistant response to DB
                     if response.get("parts"):
                         for part in response["parts"]:
@@ -339,7 +368,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                         "data": response
                     })
                 except Exception as e:
-                    print(f"Error sending message: {e}")
+                    logger.error(f"[OpenCode] Error sending message: {e}")
                     await websocket.send_json({
                         "type": "error",
                         "message": str(e)
@@ -348,12 +377,16 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             elif message_data.get("type") == "history":
                 # Get chat history from database
                 history = get_chat_messages(session_id)
+                if debug_config.get("print_database_operations"):
+                    logger.debug(f"[DB] WebSocket fetched {len(history)} messages for session: {session_id}")
                 await websocket.send_json({
                     "type": "history",
                     "data": history
                 })
 
     except WebSocketDisconnect:
+        if debug_config.get("print_api_requests"):
+            logger.debug(f"[WebSocket] Client disconnected: session_id={session_id}")
         pass
     except Exception as e:
         try:
@@ -367,12 +400,21 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 @app.post("/api/projects", response_model=ProjectResponse)
 async def api_create_project(project: ProjectCreate):
     """Create a new project"""
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] POST /api/projects - Creating project: {project.name}, path={project.path}")
+
     if not os.path.isdir(project.path):
+        logger.warning(f"[API] Project path does not exist: {project.path}")
         raise HTTPException(
             status_code=400, message="Directory does not exist")
 
     project_id = create_project(name=project.name, path=project.path)
-    return get_project_by_id(project_id)
+    result = get_project_by_id(project_id)
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] Project created: id={project_id}")
+    return result
 
 
 @app.get("/api/projects")
@@ -501,6 +543,11 @@ async def api_chat_device(request: dict):
         "message": "Hello, how are you?"
     }
     """
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] POST /api/chat/device - device_id={request.get('device_id')}, project_id={request.get('project_id')}, filename={request.get('filename')}")
+
     device_id = request.get("device_id", "")
     project_id = request.get("project_id")
     filename = request.get("filename", "")
@@ -519,6 +566,7 @@ async def api_chat_device(request: dict):
             break
 
     if not device_info:
+        logger.warning(f"[API] Device not found in cache: {device_id}")
         raise HTTPException(status_code=404, detail="Device not found in cache")
 
     # Find device connection in database
@@ -533,6 +581,7 @@ async def api_chat_device(request: dict):
             break
 
     if not device_conn:
+        logger.warning(f"[API] Device connection not found in database: {device_id}")
         raise HTTPException(status_code=404, detail="Device connection not found in database")
 
     # Get or create device session
@@ -548,9 +597,13 @@ async def api_chat_device(request: dict):
             remote_session_id=None
         )
         device_session = get_device_session(session_id)
+        if debug_config.get("print_database_operations"):
+            logger.debug(f"[DB] Created device session: {session_id}")
 
     # Save user message to device chat messages
     save_device_chat_message(device_session["id"], "user", message)
+    if debug_config.get("print_database_operations"):
+        logger.debug(f"[DB] Saved user message to session: {device_session['id']}")
 
     # Build URL for local OpenCode service
     opencode_url = device_info.get("url", "http://localhost:4096")
@@ -567,6 +620,9 @@ async def api_chat_device(request: dict):
             headers["Authorization"] = f"Basic {base64.b64encode(credentials.encode()).decode()}"
         headers["Content-Type"] = "application/json"
 
+        if debug_config.get("print_opencode_communication"):
+            logger.debug(f"[OpenCode] Creating session at {opencode_url}")
+
         # Create a session on the OpenCode server
         async with httpx.AsyncClient(timeout=60.0) as client:
             # Create session
@@ -579,13 +635,14 @@ async def api_chat_device(request: dict):
             if session_response.status_code not in (200, 201):
                 error_msg = f"创建OpenCode会话失败: {session_response.status_code}"
                 save_device_chat_message(device_session["id"], "assistant", error_msg)
+                if debug_config.get("print_opencode_communication"):
+                    logger.error(f"[OpenCode] Session creation failed: {session_response.status_code}")
                 return {"response": error_msg, "success": False}
 
             session_data = session_response.json()
             remote_session_id = session_data.get("id")
-
-            # Update device session with remote session ID
-            # Note: We can't update the session directly, but we can use it for this request
+            if debug_config.get("print_opencode_communication"):
+                logger.debug(f"[OpenCode] Session created: {remote_session_id}")
 
             # Send message
             message_response = await client.post(
@@ -600,6 +657,8 @@ async def api_chat_device(request: dict):
                     for part in resp_data["parts"]:
                         if part.get("type") == "text" and part.get("text"):
                             save_device_chat_message(device_session["id"], "assistant", part["text"])
+                            if debug_config.get("print_opencode_communication"):
+                                logger.debug(f"[OpenCode] Received response: {part['text'][:100]}...")
                             return {"response": part["text"], "success": True}
                 elif resp_data.get("message"):
                     save_device_chat_message(device_session["id"], "assistant", resp_data["message"])
@@ -610,11 +669,14 @@ async def api_chat_device(request: dict):
             else:
                 error_msg = f"发送消息失败: {message_response.status_code} - {message_response.text}"
                 save_device_chat_message(device_session["id"], "assistant", error_msg)
+                if debug_config.get("print_opencode_communication"):
+                    logger.error(f"[OpenCode] Message send failed: {message_response.status_code}")
                 return {"response": error_msg, "success": False}
 
     except Exception as e:
         error_msg = f"连接OpenCode失败: {str(e)}"
         save_device_chat_message(device_session["id"], "assistant", error_msg)
+        logger.error(f"[OpenCode] Connection error: {str(e)}")
         return {"response": error_msg, "success": False}
 
 
@@ -649,8 +711,14 @@ async def api_parse_document(request: DocumentParseRequest):
     For each .md file, look for a corresponding .json file with the same name.
     If the .json exists, parse it instead of the .md file.
     """
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] POST /api/documents/parse - project_id={request.project_id}, filename={request.filename}")
+
     project = get_project_by_id(request.project_id)
     if not project:
+        logger.warning(f"[API] Project not found: {request.project_id}")
         raise HTTPException(status_code=404, detail="Project not found")
 
     # First check for corresponding .json file
@@ -663,12 +731,15 @@ async def api_parse_document(request: DocumentParseRequest):
     elif os.path.exists(md_path):
         file_path = md_path
     else:
+        logger.warning(f"[API] Document not found: {request.filename}")
         raise HTTPException(status_code=404, detail="Document not found")
 
     try:
-        print(f"Parsing document: {file_path}")
+        if debug_config.get("print_api_requests"):
+            logger.debug(f"[API] Parsing document: {file_path}")
         result = parse_md_document_full(file_path)
-        print(f"Result: {result}")
+        if debug_config.get("print_api_requests"):
+            logger.debug(f"[API] Parsed {len(result.devices)} devices from document")
 
         # Convert device_details to dict format for response
         # Include extra_fields which contains mapped fields from field_mapping.yaml
@@ -711,7 +782,8 @@ async def api_parse_document(request: DocumentParseRequest):
 
             if not existing:
                 # Create new device connection
-                print(f"Creating device connection: project={request.project_id}, doc={doc_cache_key}, device={device_id}")
+                if debug_config.get("print_database_operations"):
+                    logger.debug(f"[DB] Creating device connection: project={request.project_id}, doc={doc_cache_key}, device={device_id}")
                 create_device_connection(
                     project_id=request.project_id,
                     document_id=doc_cache_key,
@@ -721,7 +793,11 @@ async def api_parse_document(request: DocumentParseRequest):
                     username=detail_data.get("device_username"),
                     password=detail_data.get("device_password")
                 )
-                print(f"Created device connection for {device_id}")
+                if debug_config.get("print_database_operations"):
+                    logger.debug(f"[DB] Created device connection for {device_id}")
+
+        if debug_config.get("print_api_requests"):
+            logger.debug(f"[API] Returning {len(result.devices)} devices, risk_analysis={result.risk_analysis.analysis_type}")
 
         return DocumentParseResponse(
             devices=[
@@ -748,6 +824,7 @@ async def api_parse_document(request: DocumentParseRequest):
             device_details=device_details_dict
         )
     except Exception as e:
+        logger.error(f"[API] Failed to parse document: {str(e)}")
         raise HTTPException(
             status_code=500, message=f"Failed to parse document: {str(e)}")
 
@@ -782,7 +859,14 @@ async def api_create_device_connection(device: DeviceConnectionCreate):
 @app.get("/api/devices")
 async def api_get_devices():
     """Get all device connections"""
-    return get_device_connections()
+    logger = get_logger()
+    debug_config = get_debug_config()
+    if debug_config.get("print_api_requests"):
+        logger.debug("[API] GET /api/devices - Fetching all device connections")
+    result = get_device_connections()
+    if debug_config.get("print_api_requests"):
+        logger.debug(f"[API] Returning {len(result)} device connections")
+    return result
 
 
 @app.get("/api/devices/detail")

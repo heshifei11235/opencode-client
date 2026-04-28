@@ -7,7 +7,7 @@ server:
   # 后端服务端口
   port: 8000
   # 是否开启调试模式（生产环境设为 false）
-  debug: false
+  debug: True
   # CORS 允许的来源（前端地址）
   cors_origins:
     - "http://localhost:3000"
@@ -47,18 +47,24 @@ auth:
 # 日志配置
 logging:
   # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  # DEBUG: 详细的调试信息
+  # INFO: 一般信息（如请求开始/结束）
+  # WARNING: 警告信息
+  # ERROR: 错误信息
   level: "INFO"
   # 是否打印到控制台
   console: true
-  # 日志文件路径（可选）
-  # file: "logs/app.log"
+  # 日志文件路径（可选，设置为空则不写文件）
+  # 示例: "logs/app.log"
+  file: ""
 
-# 文件上传配置（如果未来需要）
-upload:
-  # 最大文件大小（MB）
-  max_size: 10
-  # 允许的文件扩展名
-  allowed_extensions:
-    - ".md"
-    - ".json"
-    - ".txt"
+# 调试配置
+debug:
+  # 是否打印 API 请求详情（请求参数、响应等）
+  print_api_requests: true
+  # 是否打印数据库操作
+  print_database_operations: false
+  # 是否打印设备缓存操作
+  print_cache_operations: true
+  # 是否打印 OpenCode 服务通信详情
+  print_opencode_communication: true

@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional, List
 from contextlib import contextmanager
 
+from config import get_debug_config, get_logger
+
 DATABASE_PATH = "opencode_client.db"
 
 
@@ -327,6 +329,10 @@ def delete_device_session(id: str) -> bool:
 
 # Device chat message operations
 def save_device_chat_message(device_session_id: str, role: str, content: str) -> int:
+    debug_config = get_debug_config()
+    logger = get_logger()
+    if debug_config.get("print_database_operations"):
+        logger.debug(f"[DB] Saving device_chat_message: session={device_session_id}, role={role}, content_len={len(content)}")
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -473,6 +479,10 @@ def create_device_connection(
     username: str = None,
     password: str = None
 ) -> int:
+    debug_config = get_debug_config()
+    logger = get_logger()
+    if debug_config.get("print_database_operations"):
+        logger.debug(f"[DB] Creating device_connection: project_id={project_id}, document_id={document_id}, device_id={device_id}, name={name}")
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -481,7 +491,10 @@ def create_device_connection(
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (project_id, document_id, device_id, name, url, username, password)
         )
-        return cursor.lastrowid
+        result = cursor.lastrowid
+        if debug_config.get("print_database_operations"):
+            logger.debug(f"[DB] device_connection created with id={result}")
+        return result
 
 
 def get_device_connections() -> List[dict]:
