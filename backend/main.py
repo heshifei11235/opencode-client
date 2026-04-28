@@ -673,6 +673,16 @@ async def api_chat_device(request: dict):
                     logger.error(f"[OpenCode] Message send failed: {message_response.status_code}")
                 return {"response": error_msg, "success": False}
 
+    except httpx.TimeoutException as e:
+        error_msg = f"连接OpenCode超时（60秒）: 请检查OpenCode服务器是否运行正常，地址: {opencode_url}"
+        save_device_chat_message(device_session["id"], "assistant", error_msg)
+        logger.error(f"[OpenCode] Timeout connecting to {opencode_url}: {str(e)}")
+        return {"response": error_msg, "success": False}
+    except httpx.ConnectError as e:
+        error_msg = f"无法连接到OpenCode服务器: {opencode_url}，请检查服务器地址和端口是否正确"
+        save_device_chat_message(device_session["id"], "assistant", error_msg)
+        logger.error(f"[OpenCode] Connect error to {opencode_url}: {str(e)}")
+        return {"response": error_msg, "success": False}
     except Exception as e:
         error_msg = f"连接OpenCode失败: {str(e)}"
         save_device_chat_message(device_session["id"], "assistant", error_msg)
