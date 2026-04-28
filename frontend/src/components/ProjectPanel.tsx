@@ -19,8 +19,11 @@ export default function ProjectPanel() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set())
-  // Track expanded docs per project (keyed by projectId_docId)
+  // Track expanded docs per project (keyed by projectId_docId to ensure uniqueness)
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set())
+
+  // Helper to get doc key with project prefix
+  const getDocKey = (projectId: number, docId: string) => `${projectId}_${docId}`
 
   // New project form
   const [newProjectName, setNewProjectName] = useState('')
@@ -45,8 +48,6 @@ export default function ProjectPanel() {
     p.path.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // Debug: log expandedProjects changes
-  console.log('[DEBUG] ProjectPanel render, expandedProjects:', [...expandedProjects])
 
   const handleAddProject = async () => {
     if (!newProjectName.trim() || !newProjectPath.trim()) return
@@ -88,17 +89,13 @@ export default function ProjectPanel() {
   const handleToggleExpandProject = async (e: React.MouseEvent, project: Project) => {
     e.stopPropagation()
     const newExpanded = new Set(expandedProjects)
-    console.log('[DEBUG] handleToggleExpandProject BEFORE:', project.id, [...expandedProjects])
 
     if (expandedProjects.has(project.id)) {
-      console.log('[DEBUG] Collapsing project:', project.id)
       newExpanded.delete(project.id)
     } else {
-      console.log('[DEBUG] Expanding project:', project.id)
       try {
         const res = await fetch(`/api/projects/${project.id}/documents`)
         const docs = await res.json()
-        console.log('[DEBUG] Fetched docs for project', project.id, ':', docs.map(d => d.id))
         // Store documents under this project's ID
         setProjectDocuments(project.id, docs)
         newExpanded.add(project.id)
@@ -107,7 +104,6 @@ export default function ProjectPanel() {
       }
     }
 
-    console.log('[DEBUG] handleToggleExpandProject AFTER:', [...newExpanded])
     setExpandedProjects(newExpanded)
   }
 
@@ -118,7 +114,6 @@ export default function ProjectPanel() {
   }
 
   const handleSelectDocument = async (projectId: number, doc: MdDocument) => {
-    console.log('[DEBUG] handleSelectDocument called:', projectId, doc.id, 'current expandedDocs:', [...expandedDocs])
     setCurrentProjectId(projectId)
     setActiveDocumentId(doc.id)  // Set active document ID
     try {
@@ -162,12 +157,13 @@ export default function ProjectPanel() {
 
       setCurrentDevices(devices)
 
-      // Toggle doc expansion - use doc.id as key
+      // Toggle doc expansion - use project-prefixed key to ensure uniqueness across projects
+      const docKey = getDocKey(projectId, doc.id)
       const newExpanded = new Set(expandedDocs)
-      if (expandedDocs.has(doc.id)) {
-        newExpanded.delete(doc.id)
+      if (expandedDocs.has(docKey)) {
+        newExpanded.delete(docKey)
       } else {
-        newExpanded.add(doc.id)
+        newExpanded.add(docKey)
       }
       setExpandedDocs(newExpanded)
     } catch (err) {
@@ -259,10 +255,6 @@ export default function ProjectPanel() {
   const handleDeleteDevice = async (deviceId: string, docId: string) => {
     if (!confirm('Delete this device?')) return
 
-    console.log('[DEBUG] handleDeleteDevice called:', deviceId, docId)
-    console.log('[DEBUG] expandedProjects BEFORE delete:', [...expandedProjects])
-    console.log('[DEBUG] expandedDocs BEFORE delete:', [...expandedDocs])
-
     try {
       // Find and delete the device connection from database
       const connsRes = await fetch('/api/devices')
@@ -286,8 +278,6 @@ export default function ProjectPanel() {
     if (activeDeviceId === deviceId) {
       setActiveDevice(null)
     }
-
-    console.log('[DEBUG] handleDeleteDevice done')
   }
 
   return (
@@ -378,7 +368,7 @@ export default function ProjectPanel() {
                           onClick={() => handleSelectDocument(project.id, doc)}
                           className={cn(
                             'w-full text-left rounded-lg transition-all cursor-pointer p-2 flex items-center gap-2',
-                            expandedDocs.has(doc.id)
+                            expandedDocs.has(getDocKey(project.id, doc.id))
                               ? 'bg-slate-700/50 text-white'
                               : 'hover:bg-slate-700/30 text-slate-300'
                           )}
@@ -390,7 +380,7 @@ export default function ProjectPanel() {
                             }}
                             className="p-0.5 hover:bg-slate-600/50 rounded flex-shrink-0"
                           >
-                            {expandedDocs.has(doc.id) ? (
+                            {expandedDocs.has(getDocKey(project.id, doc.id)) ? (
                               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                             ) : (
                               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -401,7 +391,7 @@ export default function ProjectPanel() {
                         </div>
 
                         {/* Device list (level 3) */}
-                        {expandedDocs.has(doc.id) && (
+                        {expandedDocs.has(getDocKey(project.id, doc.id)) && (
                           <div className="ml-5 mt-1 space-y-1">
                             {currentDevices.length > 0 ? (
                               currentDevices.map((device) => (
