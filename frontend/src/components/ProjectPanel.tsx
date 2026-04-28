@@ -8,7 +8,7 @@ export default function ProjectPanel() {
   const {
     projects, addProject, removeProject,
     currentProjectId, setCurrentProjectId,
-    currentProjectDocuments, setCurrentProjectDocuments,
+    projectDocuments, setProjectDocuments,
     currentDevices, setCurrentDevices,
     activeDeviceId, setActiveDevice,
     openDeviceIds: _openDeviceIds, addOpenDevice, removeOpenDevice: _removeOpenDevice,
@@ -92,7 +92,8 @@ export default function ProjectPanel() {
       try {
         const res = await fetch(`/api/projects/${project.id}/documents`)
         const docs = await res.json()
-        setCurrentProjectDocuments(docs)
+        // Store documents under this project's ID
+        setProjectDocuments(project.id, docs)
         newExpanded.add(project.id)
       } catch (err) {
         console.error('Failed to fetch documents:', err)
@@ -246,21 +247,13 @@ export default function ProjectPanel() {
     setShowDeviceDialog(false)
   }
 
-  const handleDeleteDevice = async (deviceId: string) => {
+  const handleDeleteDevice = async (deviceId: string, docId: string) => {
     if (!confirm('Delete this device?')) return
 
     try {
       // Find and delete the device connection from database
       const connsRes = await fetch('/api/devices')
       const conns = await connsRes.json()
-      const docId = currentProjectDocuments.find(d =>
-        currentDevices.some(c => c.id === deviceId)
-      )?.id
-
-      if (!docId) {
-        console.error('Document not found for device')
-        return
-      }
 
       const connToDelete = conns.find((c: any) =>
         c.device_id === deviceId &&
@@ -361,10 +354,10 @@ export default function ProjectPanel() {
                   </div>
                 </div>
 
-                {/* Document list (level 2) */}
-                {expandedProjects.has(project.id) && currentProjectDocuments.length > 0 && (
+{/* Document list (level 2) */}
+                {expandedProjects.has(project.id) && projectDocuments[project.id]?.length > 0 && (
                   <div className="ml-3 mt-1">
-                    {currentProjectDocuments.map((doc) => (
+                    {projectDocuments[project.id].map((doc) => (
                       <div key={doc.id} className="mb-1">
                         <div
                           onClick={() => handleSelectDocument(project.id, doc)}
@@ -441,7 +434,7 @@ export default function ProjectPanel() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        handleDeleteDevice(device.id)
+                                        handleDeleteDevice(device.id, doc.id)
                                       }}
                                       className="p-1 hover:bg-red-500/20 rounded"
                                     >

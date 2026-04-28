@@ -83,9 +83,9 @@ interface AppState {
   addProject: (project: Project) => void;
   removeProject: (id: number) => void;
 
-  // Current project documents
-  currentProjectDocuments: MdDocument[];
-  setCurrentProjectDocuments: (docs: MdDocument[]) => void;
+  // Current project documents - keyed by projectId
+  projectDocuments: Record<number, MdDocument[]>;
+  setProjectDocuments: (projectId: number, docs: MdDocument[]) => void;
 
   // Current project
   currentProjectId: number | null;
@@ -168,9 +168,11 @@ export const useAppStore = create<AppState>((set) => ({
     projects: state.projects.filter(p => p.id !== id)
   })),
 
-  // Current project documents
-  currentProjectDocuments: [],
-  setCurrentProjectDocuments: (docs) => set({ currentProjectDocuments: docs }),
+// Current project documents
+  projectDocuments: {},
+  setProjectDocuments: (projectId, docs) => set((state) => ({
+    projectDocuments: { ...state.projectDocuments, [projectId]: docs }
+  })),
 
   // Current project
   currentProjectId: null,
