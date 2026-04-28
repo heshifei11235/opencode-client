@@ -45,6 +45,9 @@ export default function ProjectPanel() {
     p.path.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  // Debug: log expandedProjects changes
+  console.log('[DEBUG] ProjectPanel render, expandedProjects:', [...expandedProjects])
+
   const handleAddProject = async () => {
     if (!newProjectName.trim() || !newProjectPath.trim()) return
 
@@ -85,13 +88,17 @@ export default function ProjectPanel() {
   const handleToggleExpandProject = async (e: React.MouseEvent, project: Project) => {
     e.stopPropagation()
     const newExpanded = new Set(expandedProjects)
+    console.log('[DEBUG] handleToggleExpandProject BEFORE:', project.id, [...expandedProjects])
 
     if (expandedProjects.has(project.id)) {
+      console.log('[DEBUG] Collapsing project:', project.id)
       newExpanded.delete(project.id)
     } else {
+      console.log('[DEBUG] Expanding project:', project.id)
       try {
         const res = await fetch(`/api/projects/${project.id}/documents`)
         const docs = await res.json()
+        console.log('[DEBUG] Fetched docs for project', project.id, ':', docs.map(d => d.id))
         // Store documents under this project's ID
         setProjectDocuments(project.id, docs)
         newExpanded.add(project.id)
@@ -100,6 +107,7 @@ export default function ProjectPanel() {
       }
     }
 
+    console.log('[DEBUG] handleToggleExpandProject AFTER:', [...newExpanded])
     setExpandedProjects(newExpanded)
   }
 
@@ -110,6 +118,7 @@ export default function ProjectPanel() {
   }
 
   const handleSelectDocument = async (projectId: number, doc: MdDocument) => {
+    console.log('[DEBUG] handleSelectDocument called:', projectId, doc.id, 'current expandedDocs:', [...expandedDocs])
     setCurrentProjectId(projectId)
     setActiveDocumentId(doc.id)  // Set active document ID
     try {
@@ -250,6 +259,10 @@ export default function ProjectPanel() {
   const handleDeleteDevice = async (deviceId: string, docId: string) => {
     if (!confirm('Delete this device?')) return
 
+    console.log('[DEBUG] handleDeleteDevice called:', deviceId, docId)
+    console.log('[DEBUG] expandedProjects BEFORE delete:', [...expandedProjects])
+    console.log('[DEBUG] expandedDocs BEFORE delete:', [...expandedDocs])
+
     try {
       // Find and delete the device connection from database
       const connsRes = await fetch('/api/devices')
@@ -273,6 +286,8 @@ export default function ProjectPanel() {
     if (activeDeviceId === deviceId) {
       setActiveDevice(null)
     }
+
+    console.log('[DEBUG] handleDeleteDevice done')
   }
 
   return (
