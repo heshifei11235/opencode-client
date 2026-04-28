@@ -157,15 +157,17 @@ export default function ProjectPanel() {
 
       setCurrentDevices(devices)
 
-      // Toggle doc expansion - use project-prefixed key to ensure uniqueness across projects
+      // Toggle doc expansion - use functional update to avoid stale closure
       const docKey = getDocKey(projectId, doc.id)
-      const newExpanded = new Set(expandedDocs)
-      if (expandedDocs.has(docKey)) {
-        newExpanded.delete(docKey)
-      } else {
-        newExpanded.add(docKey)
-      }
-      setExpandedDocs(newExpanded)
+      setExpandedDocs(prev => {
+        const newExpanded = new Set(prev)
+        if (prev.has(docKey)) {
+          newExpanded.delete(docKey)
+        } else {
+          newExpanded.add(docKey)
+        }
+        return newExpanded
+      })
     } catch (err) {
       console.error('Failed to parse document:', err)
       setCurrentDevices([])
